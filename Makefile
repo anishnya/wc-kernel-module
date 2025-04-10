@@ -1,4 +1,4 @@
-obj-m+=uncached_ram.o
+obj-m+=wc_ram.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) modules
