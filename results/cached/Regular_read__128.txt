@@ -1,0 +1,2 @@
+Latency = 22.89 
+Regular read: 128: ( count = 1000000, min = 21, p1 = 22, p10 = 22, p25 = 23, p50 = 23, p75 = 23, p90 = 24, p99 = 24, max = 6695, high = 0 )

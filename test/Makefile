@@ -1,10 +1,18 @@
+CXX=g++
+CXXFLAGS=-std=c++20 -Wall -Ofast -mavx512f -mavx512vl -march=native
+LDFLAGS=-pthread
 
-CC=gcc
-#CFLAGS=-Wall -ggdb3 -std=gnu99 -O3
-CFLAGS=-Wall -ggdb3 -std=gnu99 
+all: wc_test wc_test_shared shm_benchmark
 
-all: test
+wc_test: wc_test.cpp constants.h stats.hpp bench.hpp
+	$(CXX) $(CXXFLAGS) wc_test.cpp -o wc_test
+
+wc_test_shared: wc_test_shared.cpp constants.h stats.hpp bench.hpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) wc_test_shared.cpp -o wc_test_shared
+
+shm_benchmark: shm_benchmark.cpp constants.h stats.hpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) shm_benchmark.cpp -o shm_benchmark
 
 clean:
-	-@ rm test *~  >/dev/null 2>&1
+	-@ rm -f wc_test wc_test_shared shm_benchmark *~ *.txt >/dev/null 2>&1
 

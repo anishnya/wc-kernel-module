@@ -1,0 +1,2 @@
+Latency = 41.21 
+Regular_read__64: ( count = 1000000, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 100, max = 16700, high = 0 )

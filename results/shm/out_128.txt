@@ -1,0 +1,4 @@
+Latency = 22.06 
+Regular_write__128: ( count = 1000000, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 8900, high = 0 )
+Latency = 62.72 
+Regular_read__128: ( count = 1000000, min = 100, p1 = 100, p10 = 100, p25 = 100, p50 = 100, p75 = 100, p90 = 100, p99 = 100, max = 9500, high = 0 )

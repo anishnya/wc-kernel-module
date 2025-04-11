@@ -1,0 +1,4 @@
+Latency = 26.34 
+Regular_write__1024: ( count = 1000000, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 5900, high = 0 )
+Latency = 358.98 
+Regular_read__1024: ( count = 1000000, min = 300, p1 = 300, p10 = 300, p25 = 300, p50 = 400, p75 = 400, p90 = 400, p99 = 400, max = 20300, high = 0 )

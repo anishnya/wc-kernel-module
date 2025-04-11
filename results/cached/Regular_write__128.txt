@@ -1,0 +1,2 @@
+Latency = 24.07 
+Regular write: 128: ( count = 1000000, min = 21, p1 = 21, p10 = 22, p25 = 22, p50 = 25, p75 = 26, p90 = 26, p99 = 26, max = 5089, high = 0 )

@@ -13,6 +13,9 @@
 #include <iomanip> // for std::fixed and std::setprecision
 #include <cstdint> // Add this for uint64_t
 #include <sched.h>
+#include <atomic>	 // Add this for std::atomic
+#include <thread>	 // Add this for std::thread
+#include <pthread.h> // Add this for pthread_setaffinity_np
 #include "constants.h"
 #include "stats.hpp"
 #include "bench.hpp"
@@ -123,30 +126,103 @@ void cache_prewarm(const void *buffer, size_t size)
 	DEBUG_PRINT("[DEBUG] Buffer sum verified successfully: %lu\n", running_sum);
 }
 
+void continuous_read(const void *buffer, size_t size, const std::atomic<bool> &should_continue,
+					 int cpu_id, std::atomic<uint64_t> &running_sum)
+{
+	// Pin this thread to specified core
+	cpu_set_t cpuset;
+	CPU_ZERO(&cpuset);
+	CPU_SET(cpu_id, &cpuset);
+	if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) == -1)
+	{
+		die("Failed to set reader thread CPU affinity");
+	}
+
+	DEBUG_PRINT("[DEBUG] Starting continuous read on CPU %d for size: %zu bytes\n",
+				cpu_id, size);
+
+	const volatile uint64_t *__restrict__ buf_pt = static_cast<const volatile uint64_t *>(buffer);
+	size_t num_elements = size / sizeof(uint64_t);
+
+	while (should_continue.load(std::memory_order_seq_cst))
+	{
+		// Read through the entire buffer
+		for (size_t i = 0; i < num_elements; i++)
+		{
+			// Full memory fence to ensure all previous stores are visible
+			std::atomic_thread_fence(std::memory_order_seq_cst);
+			// Volatile read with sequential consistency
+			uint64_t value = buf_pt[i];
+			running_sum.fetch_add(value, std::memory_order_relaxed);
+		}
+
+		DEBUG_PRINT("[DEBUG] Buffer read completed on CPU %d, sum: %lu\n",
+					cpu_id, running_sum.load(std::memory_order_relaxed));
+	}
+
+	DEBUG_PRINT("[DEBUG] Continuous read stopped on CPU %d, final sum: %lu\n",
+				cpu_id, running_sum.load(std::memory_order_relaxed));
+}
+
 void run_temporal_tests(void *map, void *copy_map, size_t size, bool is_uncached,
 						HistogramStats &stats_read, HistogramStats &stats_write,
 						HistogramStats &stats_copy, size_t num_iters)
 {
+	std::atomic<bool> keep_reading{true};
+	std::atomic<uint64_t> shared_sum{0};
+
 	// Skip regular reads for large uncached buffers
 	if (!(is_uncached && size > 4 * BYTES_PER_KB))
 	{
+		std::thread reader_thread(continuous_read, map, size,
+								  std::ref(keep_reading), 4, std::ref(shared_sum));
 		DEBUG_PRINT("[DEBUG] Running regular read test (%zu iterations)...\n", num_iters);
+
 		for (size_t i = 0; i < num_iters; i++)
 		{
 			run_read_benchmark(map, size, is_uncached, stats_read);
 		}
+
+		// stop reader thread
+		keep_reading.store(false, std::memory_order_seq_cst);
+		reader_thread.join();
+
+		// Start a new thread for the copy ptr
+		keep_reading.store(true, std::memory_order_seq_cst);
+		std::thread copy_reader_thread(continuous_read, copy_map, size,
+									   std::ref(keep_reading), 4, std::ref(shared_sum));
 
 		DEBUG_PRINT("[DEBUG] Running regular copy test (%zu iterations)...\n", num_iters);
 		for (size_t i = 0; i < num_iters; i++)
 		{
 			run_copy_benchmark(map, copy_map, size, stats_copy);
 		}
+
+		// Stop the continuous read thread
+		keep_reading.store(false, std::memory_order_seq_cst);
+		copy_reader_thread.join();
 	}
+
+	// Start reader thread
+	keep_reading.store(true, std::memory_order_seq_cst);
+	std::thread reader_thread(continuous_read, map, size,
+							  std::ref(keep_reading), 4, std::ref(shared_sum));
 
 	DEBUG_PRINT("[DEBUG] Running regular write test (%zu iterations)...\n", num_iters);
 	for (size_t i = 0; i < num_iters; i++)
 	{
 		run_write_benchmark(map, size, is_uncached, stats_write);
+	}
+
+	// Stop the continuous read thread
+	keep_reading.store(false, std::memory_order_seq_cst);
+	reader_thread.join();
+
+	if (shared_sum.load(std::memory_order_seq_cst) == 0)
+	{
+		std::cout << "Sum verification failed!" << std::endl;
+		std::cout << "Expected: 0, Got: " << shared_sum.load(std::memory_order_seq_cst) << std::endl;
+		std::exit(1);
 	}
 
 	DEBUG_PRINT("[DEBUG] Completed temporal tests\n");
@@ -156,6 +232,12 @@ void run_non_temporal_tests(void *map, void *copy_map, size_t size, bool is_unca
 							HistogramStats &stats_read_nt, HistogramStats &stats_write_nt,
 							HistogramStats &stats_copy_nt, size_t num_iters)
 {
+
+	std::atomic<bool> keep_reading{true};
+	std::atomic<uint64_t> shared_sum{0};
+	std::thread reader_thread(continuous_read, map, size,
+							  std::ref(keep_reading), 4, std::ref(shared_sum));
+
 	DEBUG_PRINT("[DEBUG] Running non-temporal read test (%zu iterations)...\n", num_iters);
 	for (size_t i = 0; i < num_iters; i++)
 	{
@@ -168,10 +250,34 @@ void run_non_temporal_tests(void *map, void *copy_map, size_t size, bool is_unca
 		run_write_benchmark_nt(map, size, is_uncached, stats_write_nt);
 	}
 
+	// Stop the continuous read thread
+	keep_reading.store(false, std::memory_order_seq_cst);
+	reader_thread.join();
+	DEBUG_PRINT("[DEBUG] Continuous read thread stopped, final sum: %lu\n",
+				shared_sum.load(std::memory_order_seq_cst));
+
+	// New thread but with the copy ptr
+	keep_reading.store(true, std::memory_order_seq_cst);
+	std::thread copy_reader_thread(continuous_read, copy_map, size,
+								   std::ref(keep_reading), 4, std::ref(shared_sum));
+
 	DEBUG_PRINT("[DEBUG] Running non-temporal copy test (%zu iterations)...\n", num_iters);
 	for (size_t i = 0; i < num_iters; i++)
 	{
 		run_copy_benchmark_nt(map, copy_map, size, stats_copy_nt);
+	}
+
+	// Stop the continuous read thread
+	keep_reading.store(false, std::memory_order_seq_cst);
+	copy_reader_thread.join();
+	DEBUG_PRINT("[DEBUG] Continuous read thread stopped, final sum: %lu\n",
+				shared_sum.load(std::memory_order_seq_cst));
+
+	if (shared_sum.load(std::memory_order_seq_cst) == 0)
+	{
+		std::cout << "Sum verification failed!" << std::endl;
+		std::cout << "Expected: 0, Got: " << shared_sum.load(std::memory_order_seq_cst) << std::endl;
+		std::exit(1);
 	}
 
 	DEBUG_PRINT("[DEBUG] Completed non-temporal tests\n");
@@ -293,10 +399,11 @@ int main(int ac, char **av)
 		else
 		{
 			// Single allocation for all tests
-			void *map = aligned_alloc(64, size);
-			if (!map)
+			void *map = mmap(0, size, PROT_READ | PROT_WRITE,
+							 MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+			if (map == MAP_FAILED)
 			{
-				die("Failed to allocate aligned memory");
+				die("Failed to create anonymous shared mapping");
 			}
 
 			run_benchmark_iteration(map, copy_map, size, false,
@@ -308,7 +415,7 @@ int main(int ac, char **av)
 			verify_copy_sum(copy_map, size, NUM_ITERS);
 
 			// Free single allocation
-			free(map);
+			munmap(map, size);
 		}
 
 		free(copy_map);
