@@ -13,6 +13,7 @@
 #include <iomanip> // for std::fixed and std::setprecision
 #include <cstdint> // Add this for uint64_t
 #include <sched.h>
+#include <immintrin.h> // Add this at the top for _mm_clflushopt
 #include "constants.h"
 #include "stats.hpp"
 #include "bench.hpp"
@@ -123,10 +124,28 @@ void cache_prewarm(const void *buffer, size_t size)
 	DEBUG_PRINT("[DEBUG] Buffer sum verified successfully: %lu\n", running_sum);
 }
 
+void flush_cache(void *ptr, size_t size)
+{
+	// Get alignment to 64 bytes (cache line size)
+	char *p = static_cast<char *>(ptr);
+	char *end = p + size;
+
+	// Flush each cache line
+	for (; p < end; p += 64)
+	{
+		_mm_clflushopt(p);
+	}
+
+	// Memory fence to ensure flushes complete
+	_mm_sfence();
+}
+
 void run_temporal_tests(void *map, void *copy_map, size_t size, bool is_uncached,
 						HistogramStats &stats_read, HistogramStats &stats_write,
 						HistogramStats &stats_copy, size_t num_iters)
 {
+	flush_cache(map, size);
+
 	// Skip regular reads for large uncached buffers
 	if (!(is_uncached && size > 4 * BYTES_PER_KB))
 	{
@@ -134,12 +153,14 @@ void run_temporal_tests(void *map, void *copy_map, size_t size, bool is_uncached
 		for (size_t i = 0; i < num_iters; i++)
 		{
 			run_read_benchmark(map, size, is_uncached, stats_read);
+			flush_cache(map, size);
 		}
 
 		DEBUG_PRINT("[DEBUG] Running regular copy test (%zu iterations)...\n", num_iters);
 		for (size_t i = 0; i < num_iters; i++)
 		{
 			run_copy_benchmark(map, copy_map, size, stats_copy);
+			flush_cache(map, size);
 		}
 	}
 
@@ -147,6 +168,7 @@ void run_temporal_tests(void *map, void *copy_map, size_t size, bool is_uncached
 	for (size_t i = 0; i < num_iters; i++)
 	{
 		run_write_benchmark(map, size, is_uncached, stats_write);
+		flush_cache(map, size);
 	}
 
 	DEBUG_PRINT("[DEBUG] Completed temporal tests\n");

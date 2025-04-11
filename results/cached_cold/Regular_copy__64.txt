@@ -1,0 +1,2 @@
+Latency = 100.87 
+Regular copy: 64: ( count = 1000000, min = 19, p1 = 20, p10 = 22, p25 = 22, p50 = 92, p75 = 170, p90 = 171, p99 = 448, max = 5482, high = 0 )

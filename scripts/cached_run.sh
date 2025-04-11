@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Create results directory if it doesn't exist
-mkdir -p "$(dirname "$0")/../results/cached"
+mkdir -p "$(dirname "$0")/../results/cached_double_check"
 
 # Run cached memory benchmark
 echo "Running cached memory benchmark..."
@@ -14,7 +14,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Move generated txt files to results directory
-mv "$(dirname "$0")/"*.txt "$(dirname "$0")/../results/cached/"
+mv "$(dirname "$0")/"*.txt "$(dirname "$0")/../results/cached_double_check/"
 
 echo "Benchmark completed successfully"
 echo "Results saved in: $(dirname "$0")/../results/cached/"

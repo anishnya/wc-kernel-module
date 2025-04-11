@@ -1,0 +1,106 @@
+Device path: dev
+
+Testing buffer size: 64 bytes
+
+Latency = 20.01 
+NT copy: 64: ( count = 1000000, min = 19, p1 = 19, p10 = 20, p25 = 20, p50 = 20, p75 = 20, p90 = 20, p99 = 20, max = 4650, high = 0 )
+Latency = 100.87 
+Regular copy: 64: ( count = 1000000, min = 19, p1 = 20, p10 = 22, p25 = 22, p50 = 92, p75 = 170, p90 = 171, p99 = 448, max = 5482, high = 0 )
+Latency = 151.25 
+NT write: 64: ( count = 1000000, min = 23, p1 = 149, p10 = 150, p25 = 150, p50 = 151, p75 = 152, p90 = 152, p99 = 154, max = 5941, high = 0 )
+Latency = 210.41 
+Regular write: 64: ( count = 1000000, min = 17, p1 = 200, p10 = 200, p25 = 201, p50 = 202, p75 = 203, p90 = 204, p99 = 500, max = 6861, high = 0 )
+Latency = 27.04 
+NT read: 64: ( count = 1000000, min = 21, p1 = 22, p10 = 22, p25 = 22, p50 = 23, p75 = 23, p90 = 24, p99 = 90, max = 0, high = 1 )
+Latency = 110.58 
+Regular read: 64: ( count = 1000000, min = 20, p1 = 64, p10 = 65, p25 = 66, p50 = 95, p75 = 143, p90 = 144, p99 = 472, max = 5678, high = 0 )
+
+Testing buffer size: 128 bytes
+
+Latency = 17.45 
+NT copy: 128: ( count = 1000000, min = 16, p1 = 16, p10 = 17, p25 = 17, p50 = 17, p75 = 18, p90 = 18, p99 = 19, max = 5655, high = 0 )
+Latency = 139.66 
+Regular copy: 128: ( count = 1000000, min = 18, p1 = 28, p10 = 29, p25 = 54, p50 = 124, p75 = 241, p90 = 250, p99 = 575, max = 4831, high = 0 )
+Latency = 134.23 
+NT write: 128: ( count = 1000000, min = 16, p1 = 132, p10 = 133, p25 = 133, p50 = 134, p75 = 135, p90 = 135, p99 = 137, max = 6641, high = 0 )
+Latency = 116.13 
+Regular write: 128: ( count = 1000000, min = 18, p1 = 114, p10 = 115, p25 = 115, p50 = 116, p75 = 116, p90 = 117, p99 = 118, max = 6009, high = 0 )
+Latency = 20.51 
+NT read: 128: ( count = 1000000, min = 19, p1 = 20, p10 = 20, p25 = 20, p50 = 20, p75 = 21, p90 = 21, p99 = 21, max = 7364, high = 0 )
+Latency = 172.27 
+Regular read: 128: ( count = 1000000, min = 21, p1 = 160, p10 = 161, p25 = 162, p50 = 163, p75 = 164, p90 = 165, p99 = 540, max = 6513, high = 0 )
+
+Testing buffer size: 1024 bytes
+
+Latency = 23.37 
+NT copy: 1024: ( count = 1000000, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 4000, high = 0 )
+Latency = 252.34 
+Regular copy: 1024: ( count = 1000000, min = 0, p1 = 200, p10 = 200, p25 = 200, p50 = 200, p75 = 200, p90 = 400, p99 = 600, max = 5400, high = 0 )
+Latency = 156.56 
+NT write: 1024: ( count = 1000000, min = 0, p1 = 100, p10 = 200, p25 = 200, p50 = 200, p75 = 200, p90 = 200, p99 = 200, max = 5800, high = 0 )
+Latency = 312.67 
+Regular write: 1024: ( count = 1000000, min = 100, p1 = 200, p10 = 200, p25 = 200, p50 = 300, p75 = 300, p90 = 400, p99 = 600, max = 6500, high = 0 )
+Latency = 26.47 
+NT read: 1024: ( count = 1000000, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 5900, high = 0 )
+Latency = 273.31 
+Regular read: 1024: ( count = 1000000, min = 100, p1 = 200, p10 = 200, p25 = 200, p50 = 200, p75 = 300, p90 = 500, p99 = 600, max = 38200, high = 0 )
+
+Testing buffer size: 4096 bytes
+
+Latency = 39.89 
+NT copy: 4096: ( count = 1000000, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 4700, high = 0 )
+Latency = 429.40 
+Regular copy: 4096: ( count = 1000000, min = 300, p1 = 300, p10 = 300, p25 = 400, p50 = 400, p75 = 400, p90 = 600, p99 = 900, max = 9200, high = 0 )
+Latency = 264.18 
+NT write: 4096: ( count = 1000000, min = 100, p1 = 300, p10 = 300, p25 = 300, p50 = 300, p75 = 300, p90 = 300, p99 = 300, max = 5700, high = 0 )
+Latency = 847.12 
+Regular write: 4096: ( count = 1000000, min = 300, p1 = 800, p10 = 800, p25 = 800, p50 = 800, p75 = 800, p90 = 1200, p99 = 1300, max = 9400, high = 0 )
+Latency = 54.06 
+NT read: 4096: ( count = 1000000, min = 0, p1 = 100, p10 = 100, p25 = 100, p50 = 100, p75 = 100, p90 = 100, p99 = 100, max = 6100, high = 0 )
+Latency = 527.39 
+Regular read: 4096: ( count = 1000000, min = 300, p1 = 400, p10 = 400, p25 = 400, p50 = 500, p75 = 500, p90 = 900, p99 = 1200, max = 7000, high = 0 )
+
+Testing buffer size: 32768 bytes
+
+Latency = 720.03 
+NT copy: 32768: ( count = 1000000, min = 600, p1 = 700, p10 = 700, p25 = 700, p50 = 700, p75 = 700, p90 = 700, p99 = 800, max = 7000, high = 0 )
+Latency = 2050.36 
+Regular copy: 32768: ( count = 1000000, min = 1600, p1 = 1700, p10 = 1800, p25 = 1900, p50 = 2000, p75 = 2200, p90 = 2300, p99 = 2600, max = 10400, high = 0 )
+Latency = 1244.30 
+NT write: 32768: ( count = 1000000, min = 1100, p1 = 1200, p10 = 1200, p25 = 1200, p50 = 1200, p75 = 1200, p90 = 1200, p99 = 1300, max = 13800, high = 0 )
+Latency = 3803.92 
+Regular write: 32768: ( count = 1000000, min = 2000, p1 = 3000, p10 = 3200, p25 = 3400, p50 = 3800, p75 = 4100, p90 = 4400, p99 = 4700, max = 13100, high = 0 )
+Latency = 303.24 
+NT read: 32768: ( count = 1000000, min = 300, p1 = 300, p10 = 300, p25 = 300, p50 = 300, p75 = 300, p90 = 300, p99 = 300, max = 7400, high = 0 )
+Latency = 3026.16 
+Regular read: 32768: ( count = 1000000, min = 2300, p1 = 2800, p10 = 2800, p25 = 2800, p50 = 3000, p75 = 3200, p90 = 3300, p99 = 3300, max = 11100, high = 0 )
+
+Testing buffer size: 65536 bytes
+
+Latency = 1394.02 
+NT copy: 65536: ( count = 1000000, min = 1300, p1 = 1400, p10 = 1400, p25 = 1400, p50 = 1400, p75 = 1400, p90 = 1400, p99 = 1400, max = 22200, high = 0 )
+Latency = 4103.99 
+Regular copy: 65536: ( count = 1000000, min = 3500, p1 = 3600, p10 = 3700, p25 = 4000, p50 = 4100, p75 = 4200, p90 = 4500, p99 = 4700, max = 16500, high = 0 )
+Latency = 2345.64 
+NT write: 65536: ( count = 1000000, min = 2200, p1 = 2300, p10 = 2300, p25 = 2300, p50 = 2300, p75 = 2300, p90 = 2300, p99 = 2400, max = 40400, high = 0 )
+Latency = 6298.46 
+Regular write: 65536: ( count = 1000000, min = 4200, p1 = 5800, p10 = 5900, p25 = 6100, p50 = 6300, p75 = 6500, p90 = 6700, p99 = 7100, max = 18600, high = 0 )
+Latency = 587.92 
+NT read: 65536: ( count = 1000000, min = 600, p1 = 600, p10 = 600, p25 = 600, p50 = 600, p75 = 600, p90 = 600, p99 = 600, max = 9300, high = 0 )
+Latency = 5968.90 
+Regular read: 65536: ( count = 1000000, min = 4700, p1 = 5800, p10 = 5900, p25 = 6000, p50 = 6000, p75 = 6000, p90 = 6000, p99 = 6200, max = 13300, high = 0 )
+
+Testing buffer size: 262144 bytes
+
+Latency = 5587.33 
+NT copy: 262144: ( count = 1000000, min = 5400, p1 = 5500, p10 = 5500, p25 = 5600, p50 = 5600, p75 = 5600, p90 = 5600, p99 = 5700, max = 92600, high = 0 )
+Latency = 15831.83 
+Regular copy: 262144: ( count = 1000000, min = 14700, p1 = 15400, p10 = 15800, p25 = 15800, p50 = 15800, p75 = 15800, p90 = 15900, p99 = 16500, max = 29800, high = 0 )
+Latency = 9005.99 
+NT write: 262144: ( count = 1000000, min = 8800, p1 = 9000, p10 = 9000, p25 = 9000, p50 = 9000, p75 = 9000, p90 = 9000, p99 = 9100, max = 131500, high = 0 )
+Latency = 20697.47 
+Regular write: 262144: ( count = 1000000, min = 18600, p1 = 20200, p10 = 20400, p25 = 20500, p50 = 20600, p75 = 20800, p90 = 21100, p99 = 22800, max = 45200, high = 0 )
+Latency = 2300.03 
+NT read: 262144: ( count = 1000000, min = 2300, p1 = 2300, p10 = 2300, p25 = 2300, p50 = 2300, p75 = 2300, p90 = 2300, p99 = 2300, max = 36200, high = 0 )
+Latency = 22677.45 
+Regular read: 262144: ( count = 1000000, min = 19400, p1 = 20200, p10 = 20500, p25 = 22500, p50 = 22800, p75 = 23500, p90 = 23600, p99 = 23700, max = 36500, high = 0 )
