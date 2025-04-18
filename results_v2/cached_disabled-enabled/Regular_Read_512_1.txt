@@ -1,0 +1,2 @@
+Latency = 40.46 
+Regular Read_512_1: ( count = 1000000, min = 35, p1 = 38, p10 = 39, p25 = 40, p50 = 40, p75 = 42, p90 = 42, p99 = 43, max = 5001, high = 0 )

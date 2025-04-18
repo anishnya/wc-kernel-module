@@ -1,0 +1,2 @@
+Latency = 18.75 
+Regular Read_64_1: ( count = 1000000, min = 18, p1 = 18, p10 = 18, p25 = 18, p50 = 19, p75 = 19, p90 = 19, p99 = 20, max = 4199, high = 0 )

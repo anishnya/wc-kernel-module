@@ -1,211 +1,543 @@
 #ifndef WC_BENCH_HPP
 #define WC_BENCH_HPP
 
+#include <immintrin.h>
+
 #include <chrono>
-#include <iostream>
-#include <iomanip>
-#include <cstdint>
-#include "stats.hpp"
+#include <cstring>  // For memcpy
+
+#include "bench_helper.hpp"
+#include "bench_helper_unrolled.hpp"
 #include "constants.h"
-#include <immintrin.h> // Add this at the top with other includes
-#include <cstring>     // Add to includes section
+#include "stats.hpp"
 
-// Debug macro and helper
-#ifdef WC_DEBUG
-#define DEBUG_PRINT(...)     \
-    do                       \
-    {                        \
-        printf(__VA_ARGS__); \
-    } while (0)
-#else
-#define DEBUG_PRINT(...) \
-    do                   \
-    {                    \
-    } while (0)
-#endif
+/*
+    Read benchmark functions
+*/
 
-void print_benchmark_results(bool uncached_mem_test, size_t size, size_t reads,
-                             uint64_t elapsed_ns, uint64_t sum)
+void readBenchmark(void* ptr, const std::size_t message_size, const std::size_t batch_size,
+                   HistogramStats& stats, const bool cache_flush)
 {
-    double seconds = elapsed_ns / 1e9;
-    double bandwidth = (size / (1024.0 * 1024.0)) / seconds; // MB/s
+    DEBUG_PRINT("Starting Regular Read benchmark: size=" << message_size
+                                                         << " bytes, batch_size=" << batch_size);
 
-    if (!(sum ^ (reads << 2)) && sum == 0)
+    // Intial cache miss amortized over larger sizes
+    if (cache_flush)
     {
-        std::cout << "Error: Sum verification failed!" << std::endl;
-        std::cout << (uncached_mem_test ? "uncached" : "cached")
-                  << " mem test: buffer size: " << size
-                  << " bytes, " << reads << " reads in "
-                  << std::fixed << std::setprecision(2) << seconds
-                  << "s (bandwidth: " << std::setprecision(2) << bandwidth
-                  << " MB/s, sum: " << sum << ")" << std::endl;
-        exit(1);
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        read_buffer(reinterpret_cast<void*>(current_ptr), message_size, TEST_PATTERN);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_ptr += message_size;
+    }
+
+    return;
+}
+
+void readBenchmarkNt(void* ptr, const std::size_t message_size, const std::size_t batch_size,
+                     HistogramStats& stats, const bool cache_flush)
+{
+    DEBUG_PRINT("Starting NT Read benchmark: size=" << message_size
+                                                    << " bytes, batch_size=" << batch_size);
+
+    // Flushing should not impact performance
+    if (cache_flush)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        read_buffer_nt(reinterpret_cast<void*>(current_ptr), message_size, TEST_PATTERN);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_ptr += message_size;
+    }
+
+    return;
+}
+
+void readBenchmarkAvx512(void* ptr, const std::size_t message_size, const std::size_t batch_size,
+                         HistogramStats& stats, const bool cache_flush)
+{
+    DEBUG_PRINT("Starting AVX-512 Read benchmark: size=" << message_size
+                                                         << " bytes, batch_size=" << batch_size);
+
+    // Initial cache miss amortized over larger sizes
+    if (cache_flush)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        read_buffer_avx512(reinterpret_cast<void*>(current_ptr), message_size, TEST_PATTERN);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_ptr += message_size;
+    }
+
+    return;
+}
+
+void readBenchmarkAvx512Unrolled(void* ptr, const std::size_t message_size,
+                                 const std::size_t batch_size, HistogramStats& stats,
+                                 const bool cache_flush)
+{
+    DEBUG_PRINT("Starting AVX-512 Unrolled Read benchmark: size="
+                << message_size << " bytes, batch_size=" << batch_size);
+
+    // Initial cache miss amortized over larger sizes
+    if (cache_flush)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        read_buffer_avx512_unrolled(reinterpret_cast<void*>(current_ptr), message_size,
+                                    TEST_PATTERN);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_ptr += message_size;
     }
 }
 
-void run_copy_benchmark(void *src, void *dst, size_t size, HistogramStats &copy_stats)
+/*
+    Write benchmark functions
+*/
+
+void writeBenchmark(void* ptr, const std::size_t message_size, const std::size_t batch_size,
+                    HistogramStats& stats, const bool cache_flush)
 {
-    // Time copy operation
-    auto copy_start = std::chrono::high_resolution_clock::now();
-    std::memcpy(dst, src, size);
-    uint64_t copy_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                           std::chrono::high_resolution_clock::now() - copy_start)
-                           .count();
-    copy_stats.event(copy_ns);
+    DEBUG_PRINT("Starting Regular Write benchmark: size=" << message_size
+                                                          << " bytes, batch_size=" << batch_size);
 
-    DEBUG_PRINT("[DEBUG] Copied %zu bytes in %lu ns\n", size, copy_ns);
-}
-
-void run_copy_benchmark_nt(void *src, void *dst, size_t size, HistogramStats &copy_stats)
-{
-    // Time copy operation
-    auto copy_start = std::chrono::high_resolution_clock::now();
-
-    // Process 512 bits (64 bytes) at a time using AVX-512 pointers
-    __m512i *src_vec = reinterpret_cast<__m512i *>(src);
-    __m512i *dst_vec = reinterpret_cast<__m512i *>(dst);
-    size_t vec_count = size / sizeof(__m512i);
-
-    for (size_t i = 0; i < vec_count; i++)
+    // Intial cache miss amortized over larger sizes
+    if (cache_flush)
     {
-        __m512i v = _mm512_stream_load_si512(&src_vec[i]);
-        _mm512_store_si512(&dst_vec[i], v);
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
     }
 
-    uint64_t copy_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                           std::chrono::high_resolution_clock::now() - copy_start)
-                           .count();
-    copy_stats.event(copy_ns);
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
 
-    DEBUG_PRINT("[DEBUG] NT-load copied %zu bytes in %lu ns\n", size, copy_ns);
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        write_buffer(reinterpret_cast<void*>(current_ptr), message_size, TEST_PATTERN);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_ptr += message_size;
+    }
+
+    return;
 }
 
-void run_read_benchmark(void *map, size_t size, bool uncached_mem_test, HistogramStats &stats)
+void writeBenchmarkNt(void* ptr, const std::size_t message_size, const std::size_t batch_size,
+                      HistogramStats& stats, const bool cache_flush)
 {
-    DEBUG_PRINT("[DEBUG] Starting regular read benchmark: size=%zu bytes\n", size);
+    DEBUG_PRINT("Starting NT Write benchmark: size=" << message_size
+                                                     << " bytes, batch_size=" << batch_size);
+
+    // Flushing should not impact performance
+    if (cache_flush)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
     auto time_start = std::chrono::high_resolution_clock::now();
 
-    volatile uint64_t *pt = ((volatile uint64_t *)map);
-    size_t tsize = size / sizeof(uint64_t);
-    uint64_t sum = 0;
-    size_t reads = 0;
-
-    DEBUG_PRINT("[DEBUG] Reading %zu uint64_t elements\n", tsize);
-    for (size_t i = 0; i < tsize; i++)
+    for (std::size_t i = 0; i < batch_size; i++)
     {
-        sum += pt[i];
-        reads++;
-    }
-    DEBUG_PRINT("[DEBUG] Completed %zu reads, sum=0x%lx\n", reads, sum);
-
-    uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                              std::chrono::high_resolution_clock::now() - time_start)
-                              .count();
-    DEBUG_PRINT("[DEBUG] Elapsed time: %lu ns\n", elapsed_ns);
-
-    stats.event(elapsed_ns);
-    print_benchmark_results(uncached_mem_test, size, reads, elapsed_ns, sum);
-}
-
-void run_read_benchmark_nt(void *map, size_t size, bool uncached_mem_test, HistogramStats &stats)
-{
-    DEBUG_PRINT("[DEBUG] Starting non-temporal read benchmark: size=%zu bytes\n", size);
-    auto time_start = std::chrono::high_resolution_clock::now();
-
-    volatile uint64_t *pt = static_cast<volatile uint64_t *>(map);
-    size_t tsize = (size / sizeof(uint64_t));
-    size_t reads = 0;
-
-    uint64_t tmp[8];
-    __m512i v;
-    __m512i sum_vec = _mm512_setzero_si512(); // Initialize sum vector to zero
-    DEBUG_PRINT("[DEBUG] Reading %zu uint64_t elements with NT loads\n", tsize);
-
-    for (size_t i = 0; i < tsize; i += 8)
-    {
-        v = _mm512_stream_load_si512((__m512i *)(pt + i));
-        sum_vec = _mm512_add_epi64(sum_vec, v); // Add vectors
-        reads += 8;
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+        write_buffer_nt(reinterpret_cast<void*>(current_ptr), message_size, TEST_PATTERN);
+        current_ptr += message_size;
     }
 
-    // Reduce vector sum to scalar
-    _mm512_store_si512((__m512i *)tmp, sum_vec);
-    uint64_t sum = 0;
-    for (int j = 0; j < 8; j++)
-    {
-        sum += tmp[j];
-    }
-
-    DEBUG_PRINT("[DEBUG] Completed %zu NT reads, sum=0x%lx\n", reads, sum);
-
-    uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                              std::chrono::high_resolution_clock::now() - time_start)
-                              .count();
-
-    stats.event(elapsed_ns);
-    print_benchmark_results(uncached_mem_test, size, reads, elapsed_ns, sum);
-}
-
-void run_write_benchmark(void *map, size_t size, bool uncached_mem_test, HistogramStats &stats)
-{
-    DEBUG_PRINT("[DEBUG] Starting regular write benchmark: size=%zu bytes\n", size);
-    auto time_start = std::chrono::high_resolution_clock::now();
-
-    volatile uint64_t *pt = ((volatile uint64_t *)map);
-    size_t tsize = size / sizeof(uint64_t);
-    uint64_t value = 0xDEADBEEF; // Test pattern
-    size_t writes = 0;
-
-    DEBUG_PRINT("[DEBUG] Writing %zu uint64_t elements with value 0x%lx\n", tsize, value);
-    // Simple sequential write through the buffer
-    for (size_t i = 0; i < tsize; i++)
-    {
-        pt[i] = value;
-        writes++;
-    }
-    DEBUG_PRINT("[DEBUG] Completed %zu writes\n", writes);
-
-    uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                              std::chrono::high_resolution_clock::now() - time_start)
-                              .count();
-    DEBUG_PRINT("[DEBUG] Elapsed time: %lu ns\n", elapsed_ns);
-
-    stats.event(elapsed_ns);
-    print_benchmark_results(uncached_mem_test, size, writes, elapsed_ns, value);
-}
-
-void run_write_benchmark_nt(void *map, size_t size, bool uncached_mem_test, HistogramStats &stats)
-{
-    DEBUG_PRINT("[DEBUG] Starting non-temporal write benchmark: size=%zu bytes\n", size);
-    auto time_start = std::chrono::high_resolution_clock::now();
-
-    volatile uint64_t *pt = static_cast<volatile uint64_t *>(map);
-    size_t tsize = (size / sizeof(uint64_t));
-    size_t writes = 0;
-
-    // Create a 512-bit vector filled with our test pattern
-    uint64_t pattern = 0xDEADBEEF;
-    __m512i v_pattern = _mm512_set1_epi64(pattern);
-
-    DEBUG_PRINT("[DEBUG] Writing %zu uint64_t elements with NT stores (pattern: 0x%lx)\n", tsize, pattern);
-    // Process 512 bits (64 bytes) at a time using non-temporal stores
-    for (size_t i = 0; i < tsize; i += 8)
-    {
-        _mm512_stream_si512((__m512i *)(pt + i), v_pattern);
-        writes += 8;
-    }
-    DEBUG_PRINT("[DEBUG] Completed %zu NT writes\n", writes);
-
-    // Ensure all non-temporal writes are complete
+    // Forced flush amortized across larger sizes
     _mm_sfence();
 
-    uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                              std::chrono::high_resolution_clock::now() - time_start)
-                              .count();
-    DEBUG_PRINT("[DEBUG] Elapsed time: %lu ns\n", elapsed_ns);
+    // Stats across the entire batch
+    const std::uint64_t total_elapsed_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now() - time_start)
+            .count();
+    const std::uint64_t elapsed_ns = total_elapsed_ns / batch_size;
 
-    stats.event(elapsed_ns);
-    print_benchmark_results(uncached_mem_test, size, writes, elapsed_ns, pattern);
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        stats.event(elapsed_ns);
+    }
+
+    return;
 }
 
-#endif // WC_BENCH_HPP
+void writeBenchmarkAvx512(void* ptr, const std::size_t message_size, const std::size_t batch_size,
+                          HistogramStats& stats, const bool cache_flush)
+{
+    DEBUG_PRINT("Starting AVX-512 Write benchmark: size=" << message_size
+                                                          << " bytes, batch_size=" << batch_size);
+
+    // Initial cache miss amortized over larger sizes
+    if (cache_flush)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        write_buffer_avx512(reinterpret_cast<void*>(current_ptr), message_size, TEST_PATTERN);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_ptr += message_size;
+    }
+
+    return;
+}
+
+void writeBenchmarkAvx512Unrolled(void* ptr, const std::size_t message_size,
+                                  const std::size_t batch_size, HistogramStats& stats,
+                                  const bool cache_flush)
+{
+    DEBUG_PRINT("Starting AVX-512 Unrolled Write benchmark: size="
+                << message_size << " bytes, batch_size=" << batch_size);
+
+    // Initial cache miss amortized over larger sizes
+    if (cache_flush)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        write_buffer_avx512_unrolled(reinterpret_cast<void*>(current_ptr), message_size,
+                                     TEST_PATTERN);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_ptr += message_size;
+    }
+}
+
+void readBenchmarkNtUnrolled(void* ptr, const std::size_t message_size,
+                             const std::size_t batch_size, HistogramStats& stats,
+                             const bool cache_flush)
+{
+    DEBUG_PRINT("Starting NT Unrolled Read benchmark: size="
+                << message_size << " bytes, batch_size=" << batch_size);
+
+    // Flushing should not impact performance
+    if (cache_flush)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        read_buffer_nt_unrolled(reinterpret_cast<void*>(current_ptr), message_size, TEST_PATTERN);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_ptr += message_size;
+    }
+}
+
+void writeBenchmarkNtUnrolled(void* ptr, const std::size_t message_size,
+                              const std::size_t batch_size, HistogramStats& stats,
+                              const bool cache_flush)
+{
+    DEBUG_PRINT("Starting NT Unrolled Write benchmark: size="
+                << message_size << " bytes, batch_size=" << batch_size);
+
+    // Flushing should not impact performance
+    if (cache_flush)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(ptr, flush_size, true);
+    }
+
+    std::uintptr_t current_ptr = reinterpret_cast<std::uintptr_t>(ptr);
+
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " at address 0x" << std::hex
+                                     << current_ptr << std::dec);
+        write_buffer_nt_unrolled(reinterpret_cast<void*>(current_ptr), message_size, TEST_PATTERN);
+        current_ptr += message_size;
+    }
+
+    // Forced flush amortized across larger sizes
+    _mm_sfence();
+
+    const std::uint64_t total_elapsed_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now() - time_start)
+            .count();
+    const std::uint64_t elapsed_ns = total_elapsed_ns / batch_size;
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        stats.event(elapsed_ns);
+    }
+}
+
+void copyBenchmark(void* src, void* dst, const std::size_t message_size,
+                   const std::size_t batch_size, HistogramStats& stats, const bool cache_flush_src,
+                   const bool cache_flush_dst)
+{
+    DEBUG_PRINT("Starting Regular Copy benchmark: size=" << message_size
+                                                         << " bytes, batch_size=" << batch_size);
+
+    // Intial cache miss amortized over larger sizes
+    if (cache_flush_src)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(src, flush_size, true);
+    }
+
+    if (cache_flush_dst)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(dst, flush_size, true);
+    }
+
+    std::uintptr_t current_src_ptr = reinterpret_cast<std::uintptr_t>(src);
+    std::uintptr_t current_dst_ptr = reinterpret_cast<std::uintptr_t>(dst);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " src=0x" << std::hex
+                                     << current_src_ptr << " dst=0x" << current_dst_ptr
+                                     << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        copy_buffer_fast(reinterpret_cast<void*>(current_dst_ptr),
+                         reinterpret_cast<void*>(current_src_ptr), message_size);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_src_ptr += message_size;
+        current_dst_ptr += message_size;
+    }
+
+    // Read the destination buffer to ensure it is not optimized away
+    read_buffer(reinterpret_cast<void*>(current_dst_ptr), message_size, TEST_PATTERN);
+
+    return;
+}
+
+void copyBenchmarkNtSrc(void* src, void* dst, const std::size_t message_size,
+                        const std::size_t batch_size, HistogramStats& stats,
+                        const bool cache_flush_dst)
+{
+    DEBUG_PRINT("Starting NT Source Copy benchmark: size=" << message_size
+                                                           << " bytes, batch_size=" << batch_size);
+
+    // Intial cache miss amortized over larger sizes
+    if (cache_flush_dst)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(dst, flush_size, true);
+    }
+
+    std::uintptr_t current_src_ptr = reinterpret_cast<std::uintptr_t>(src);
+    std::uintptr_t current_dst_ptr = reinterpret_cast<std::uintptr_t>(dst);
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " src=0x" << std::hex
+                                     << current_src_ptr << " dst=0x" << current_dst_ptr
+                                     << std::dec);
+
+        auto time_start = std::chrono::high_resolution_clock::now();
+        copy_buffer_nt_src(reinterpret_cast<void*>(current_dst_ptr),
+                           reinterpret_cast<void*>(current_src_ptr), message_size);
+        const std::uint64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                             std::chrono::high_resolution_clock::now() - time_start)
+                                             .count();
+        stats.event(elapsed_ns);
+
+        current_src_ptr += message_size;
+        current_dst_ptr += message_size;
+    }
+
+    // Read the destination buffer to ensure it is not optimized away
+    read_buffer(reinterpret_cast<void*>(current_dst_ptr), message_size, TEST_PATTERN);
+
+    return;
+}
+
+void copyBenchmarkNtDst(void* src, void* dst, const std::size_t message_size,
+                        const std::size_t batch_size, HistogramStats& stats,
+                        const bool cache_flush_src)
+{
+    DEBUG_PRINT("Starting NT Destination Copy benchmark: size="
+                << message_size << " bytes, batch_size=" << batch_size);
+
+    // Intial cache miss amortized over larger sizes
+    if (cache_flush_src)
+    {
+        const std::size_t flush_size = message_size * batch_size;
+        flush_cache(src, flush_size, true);
+    }
+
+    std::uintptr_t current_src_ptr = reinterpret_cast<std::uintptr_t>(src);
+    std::uintptr_t current_dst_ptr = reinterpret_cast<std::uintptr_t>(dst);
+
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " src=0x" << std::hex
+                                     << current_src_ptr << " dst=0x" << current_dst_ptr
+                                     << std::dec);
+        copy_buffer_nt_src(reinterpret_cast<void*>(current_dst_ptr),
+                           reinterpret_cast<void*>(current_src_ptr), message_size);
+        current_src_ptr += message_size;
+        current_dst_ptr += message_size;
+    }
+
+    // Forced flush amortized across larger sizes
+    _mm_sfence();
+
+    const std::uint64_t total_elapsed_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now() - time_start)
+            .count();
+    const std::uint64_t elapsed_ns = total_elapsed_ns / batch_size;
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        stats.event(elapsed_ns);
+    }
+
+    return;
+}
+
+void copyBenchmarkNtSrcDst(void* src, void* dst, const std::size_t message_size,
+                           const std::size_t batch_size, HistogramStats& stats)
+{
+    DEBUG_PRINT("Starting NT Source/Destination Copy benchmark: size="
+                << message_size << " bytes, batch_size=" << batch_size);
+
+    std::uintptr_t current_src_ptr = reinterpret_cast<std::uintptr_t>(src);
+    std::uintptr_t current_dst_ptr = reinterpret_cast<std::uintptr_t>(dst);
+
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        DEBUG_PRINT("Running batch " << i << "/" << batch_size << " src=0x" << std::hex
+                                     << current_src_ptr << " dst=0x" << current_dst_ptr
+                                     << std::dec);
+        copy_buffer_nt_both(reinterpret_cast<void*>(current_dst_ptr),
+                            reinterpret_cast<void*>(current_src_ptr), message_size);
+        current_src_ptr += message_size;
+        current_dst_ptr += message_size;
+    }
+
+    // Forced flush amortized across larger sizes
+    _mm_sfence();
+
+    const std::uint64_t total_elapsed_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now() - time_start)
+            .count();
+    const std::uint64_t elapsed_ns = total_elapsed_ns / batch_size;
+
+    for (std::size_t i = 0; i < batch_size; i++)
+    {
+        stats.event(elapsed_ns);
+    }
+
+    return;
+}
+
+#endif  // WC_BENCH_HPP

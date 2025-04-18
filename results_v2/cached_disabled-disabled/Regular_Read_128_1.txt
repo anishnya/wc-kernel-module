@@ -1,0 +1,2 @@
+Latency = 23.00 
+Regular Read_128_1: ( count = 1000000, min = 20, p1 = 22, p10 = 22, p25 = 23, p50 = 23, p75 = 23, p90 = 24, p99 = 24, max = 5080, high = 0 )

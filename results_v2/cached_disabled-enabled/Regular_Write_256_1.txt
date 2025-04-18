@@ -1,0 +1,2 @@
+Latency = 24.16 
+Regular Write_256_1: ( count = 1000000, min = 22, p1 = 23, p10 = 24, p25 = 24, p50 = 24, p75 = 24, p90 = 25, p99 = 25, max = 6039, high = 0 )

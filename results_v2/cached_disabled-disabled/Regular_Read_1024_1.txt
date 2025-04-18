@@ -1,0 +1,2 @@
+Latency = 68.24 
+Regular Read_1024_1: ( count = 1000000, min = 50, p1 = 60, p10 = 70, p25 = 70, p50 = 70, p75 = 70, p90 = 70, p99 = 70, max = 5220, high = 0 )

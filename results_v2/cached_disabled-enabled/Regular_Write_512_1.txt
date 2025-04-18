@@ -1,0 +1,2 @@
+Latency = 33.20 
+Regular Write_512_1: ( count = 1000000, min = 32, p1 = 32, p10 = 32, p25 = 33, p50 = 33, p75 = 33, p90 = 34, p99 = 34, max = 10063, high = 0 )

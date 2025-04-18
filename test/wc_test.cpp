@@ -1,342 +1,491 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <string.h>
 #include <assert.h>
-#include <unistd.h>
-#include <chrono>
-#include <vector>
-#include <iostream>
-#include <iomanip> // for std::fixed and std::setprecision
-#include <cstdint> // Add this for uint64_t
+#include <fcntl.h>
+#include <immintrin.h>  // Add this at the top for _mm_clflushopt
 #include <sched.h>
-#include <immintrin.h> // Add this at the top for _mm_clflushopt
-#include "constants.h"
-#include "stats.hpp"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <chrono>
+#include <cstdint>  // Add this for uint64_t
+#include <iomanip>  // for std::fixed and std::setprecision
+#include <iostream>
+#include <vector>
+
 #include "bench.hpp"
+#include "constants.h"
+#include "mem.hpp"
+#include "stats.hpp"
 
 void usage(int ac, char **av)
 {
-	std::cout << "usage: " << av[0] << " cached   mem_dev\n";
-	std::cout << "       " << av[0] << " uncached mem_dev\n";
-	exit(1);
+    std::cout << "usage: " << av[0]
+              << " cached|uncached mem_dev temporal_flush non_temporal_flush\n";
+    std::cout << "       temporal_flush: 0|1 (disable|enable temporal cache flush)\n";
+    std::cout << "       non_temporal_flush: 0|1 (disable|enable non-temporal cache flush)\n";
+    exit(1);
 }
 
 void die(const char *msg)
 {
-	std::cout << msg << std::endl;
-	exit(1);
+    std::cout << msg << std::endl;
+    exit(1);
 }
 
-#define PAGE_SIZE (sysconf(_SC_PAGESIZE))
-#define PAGE_MASK (~(PAGE_SIZE - 1))
-
-void *get_mem(char *dev, int size)
+const std::uint64_t testBucketSize(const std::size_t buffer_size)
 {
-	assert(PAGE_SIZE != -1);
-
-	int fd = open(dev, O_RDWR, 0);
-	if (fd == -1)
-	{
-		die("couldn't open device");
-	}
-
-	if (size & ~PAGE_MASK)
-	{
-		size = (size & PAGE_MASK) + PAGE_SIZE;
-	}
-
-	void *map = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (map == MAP_FAILED)
-	{
-		close(fd); // Close fd on error
-		die("mmap failed.");
-	}
-
-	close(fd); // Close fd after successful mmap
-	return map;
+    if (buffer_size < BYTES_PER_KB)
+    {
+        return 1;  // 1ns bucket for byte-sized buffers
+    }
+    else if (buffer_size < BYTES_PER_MB)
+    {
+        return 10;  // 10ns bucket for KB-sized buffers
+    }
+    else
+    {
+        return 200;  // 200ns bucket for MB-sized buffers
+    }
 }
 
-size_t align_up(size_t size, size_t alignment)
+const std::string testFileName(const std::string test_type, const std::size_t message_size,
+                               const std::size_t batch_size)
 {
-	return (size + alignment - 1) & ~(alignment - 1);
+    return test_type + "_" + std::to_string(message_size) + "_" + std::to_string(batch_size);
 }
 
-// Add this helper function before main()
-uint64_t get_bucket_size(size_t buffer_size)
+const std::size_t numItersBatchSize(const std::size_t batch_size) { return NUM_ITERS / batch_size; }
+
+void copyMixedTests(const MemArena &src_arena, const MemArena &copy_arena,
+                    const std::size_t message_size, const std::size_t batch_size)
 {
-	if (buffer_size < BYTES_PER_KB)
-	{
-		return 1; // 1ns bucket for byte-sized buffers
-	}
-	else if (buffer_size < BYTES_PER_MB)
-	{
-		return 100; // 100ns bucket for KB-sized buffers
-	}
-	else
-	{
-		return 200; // 200ns bucket for MB-sized buffers
-	}
+    const std::uint64_t bucket_size = testBucketSize(message_size);
+    HistogramStats stats_copy_nt_src(testFileName("NT Copy Src", message_size, batch_size),
+                                     bucket_size, HISTO_SIZE, true);
+    HistogramStats stats_copy_nt_dst(testFileName("NT Copy", message_size, batch_size), bucket_size,
+                                     HISTO_SIZE, true);
+
+    void *src_ptr = src_arena.ptr;
+    void *dst_ptr = copy_arena.ptr;
+
+    bool src_cache_flush = static_cast<bool>(src_arena.flush_type);
+    bool dst_cache_flush = static_cast<bool>(copy_arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        copyBenchmarkNtSrc(src_ptr, dst_ptr, message_size, batch_size, stats_copy_nt_src,
+                           dst_cache_flush);
+    }
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        copyBenchmarkNtDst(src_ptr, dst_ptr, message_size, batch_size, stats_copy_nt_dst,
+                           src_cache_flush);
+    }
+
+    return;
 }
 
-// Add this helper function before main()
-void verify_copy_sum(void *copy_map, size_t size, size_t num_iters)
+void runRegularCopyTests(const MemArena &src_arena, const MemArena &copy_arena,
+                         const std::size_t message_size, const std::size_t batch_size)
 {
-	volatile uint64_t *copy_pt = static_cast<volatile uint64_t *>(copy_map);
-	size_t tsize = size / sizeof(uint64_t);
-	uint64_t sum = 0;
+    const std::uint64_t bucket_size = testBucketSize(message_size);
+    HistogramStats stats_copy(testFileName("Copy Fast", message_size, batch_size), bucket_size,
+                              HISTO_SIZE, true);
 
-	for (size_t i = 0; i < tsize; i++)
-	{
-		sum += copy_pt[i];
-	}
+    void *src_ptr = src_arena.ptr;
+    void *dst_ptr = copy_arena.ptr;
 
-	if ((sum ^ num_iters) == 0 && sum != 0)
-	{
-		std::cout << "Sum verification failed!" << std::endl;
-		std::exit(1);
-	}
+    bool src_cache_flush = static_cast<bool>(src_arena.flush_type);
+    bool dst_cache_flush = static_cast<bool>(copy_arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        copyBenchmark(src_ptr, dst_ptr, message_size, batch_size, stats_copy, src_cache_flush,
+                      dst_cache_flush);
+    }
 }
 
-void cache_prewarm(const void *buffer, size_t size)
+void runNtCopyTests(const MemArena &src_arena, const MemArena &copy_arena,
+                    const std::size_t message_size, const std::size_t batch_size)
 {
-	DEBUG_PRINT("[DEBUG] Verifying buffer sum for size: %zu bytes\n", size);
+    const std::uint64_t bucket_size = testBucketSize(message_size);
+    HistogramStats stats_copy_nt(testFileName("NT Both", message_size, batch_size), bucket_size,
+                                 HISTO_SIZE, true);
 
-	const volatile uint64_t *buf_pt = static_cast<const volatile uint64_t *>(buffer);
-	size_t num_elements = size / sizeof(uint64_t);
-	uint64_t running_sum = 0;
+    void *src_ptr = src_arena.ptr;
+    void *dst_ptr = copy_arena.ptr;
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
 
-	for (size_t i = 0; i < num_elements; i++)
-	{
-		running_sum += buf_pt[i];
-	}
-
-	if (running_sum == size)
-	{
-		std::cout << "Buffer sum verification failed!" << std::endl;
-		std::cout << "Expected: " << size << ", Got: " << running_sum << std::endl;
-		std::exit(1);
-	}
-
-	DEBUG_PRINT("[DEBUG] Buffer sum verified successfully: %lu\n", running_sum);
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        copyBenchmarkNtSrcDst(src_ptr, dst_ptr, message_size, batch_size, stats_copy_nt);
+    }
 }
 
-void flush_cache(void *ptr, size_t size)
+void runNtSrcCopyTests(const MemArena &src_arena, const MemArena &copy_arena,
+                       const std::size_t message_size, const std::size_t batch_size)
 {
-	// Get alignment to 64 bytes (cache line size)
-	char *p = static_cast<char *>(ptr);
-	char *end = p + size;
+    const std::uint64_t bucket_size = testBucketSize(message_size);
+    HistogramStats stats_copy_nt_src(testFileName("NT Copy Src", message_size, batch_size),
+                                     bucket_size, HISTO_SIZE, true);
 
-	// Flush each cache line
-	for (; p < end; p += 64)
-	{
-		_mm_clflushopt(p);
-	}
+    void *src_ptr = src_arena.ptr;
+    void *dst_ptr = copy_arena.ptr;
+    bool dst_cache_flush = static_cast<bool>(copy_arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
 
-	// Memory fence to ensure flushes complete
-	_mm_sfence();
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        copyBenchmarkNtSrc(src_ptr, dst_ptr, message_size, batch_size, stats_copy_nt_src,
+                           dst_cache_flush);
+    }
 }
 
-void run_temporal_tests(void *map, void *copy_map, size_t size, bool is_uncached,
-						HistogramStats &stats_read, HistogramStats &stats_write,
-						HistogramStats &stats_copy, size_t num_iters)
+void runNtDstCopyTests(const MemArena &src_arena, const MemArena &copy_arena,
+                       const std::size_t message_size, const std::size_t batch_size)
 {
-	flush_cache(map, size);
+    const std::uint64_t bucket_size = testBucketSize(message_size);
+    HistogramStats stats_copy_nt_dst(testFileName("NT Copy", message_size, batch_size), bucket_size,
+                                     HISTO_SIZE, true);
 
-	// Skip regular reads for large uncached buffers
-	if (!(is_uncached && size > 4 * BYTES_PER_KB))
-	{
-		DEBUG_PRINT("[DEBUG] Running regular read test (%zu iterations)...\n", num_iters);
-		for (size_t i = 0; i < num_iters; i++)
-		{
-			run_read_benchmark(map, size, is_uncached, stats_read);
-			flush_cache(map, size);
-		}
+    void *src_ptr = src_arena.ptr;
+    void *dst_ptr = copy_arena.ptr;
+    bool src_cache_flush = static_cast<bool>(src_arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
 
-		DEBUG_PRINT("[DEBUG] Running regular copy test (%zu iterations)...\n", num_iters);
-		for (size_t i = 0; i < num_iters; i++)
-		{
-			run_copy_benchmark(map, copy_map, size, stats_copy);
-			flush_cache(map, size);
-		}
-	}
-
-	DEBUG_PRINT("[DEBUG] Running regular write test (%zu iterations)...\n", num_iters);
-	for (size_t i = 0; i < num_iters; i++)
-	{
-		run_write_benchmark(map, size, is_uncached, stats_write);
-		flush_cache(map, size);
-	}
-
-	DEBUG_PRINT("[DEBUG] Completed temporal tests\n");
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        copyBenchmarkNtDst(src_ptr, dst_ptr, message_size, batch_size, stats_copy_nt_dst,
+                           src_cache_flush);
+    }
 }
 
-void run_non_temporal_tests(void *map, void *copy_map, size_t size, bool is_uncached,
-							HistogramStats &stats_read_nt, HistogramStats &stats_write_nt,
-							HistogramStats &stats_copy_nt, size_t num_iters)
+void copyIteration(char *dev, const std::size_t message_size, const std::size_t batch_size,
+                   const CacheFlushType temporal_flush, const CacheFlushType non_temporal_flush)
 {
-	DEBUG_PRINT("[DEBUG] Running non-temporal read test (%zu iterations)...\n", num_iters);
-	for (size_t i = 0; i < num_iters; i++)
-	{
-		run_read_benchmark_nt(map, size, is_uncached, stats_read_nt);
-	}
+    DEBUG_PRINT("Starting Copy benchmark iteration: size="
+                << message_size << " bytes, batch_size=" << batch_size
+                << " (mode=" << (mem_type == MemoryType::WC ? "uncached" : "cached") << ")");
 
-	DEBUG_PRINT("[DEBUG] Running non-temporal write test (%zu iterations)...\n", num_iters);
-	for (size_t i = 0; i < num_iters; i++)
-	{
-		run_write_benchmark_nt(map, size, is_uncached, stats_write_nt);
-	}
+    const std::size_t buffer_size = message_size * batch_size;
+    MemArena wc_mem_arena(dev, buffer_size, MemoryType::WC, non_temporal_flush);
+    MemArena wb_mem_arena(dev, buffer_size, MemoryType::WB, temporal_flush);
 
-	DEBUG_PRINT("[DEBUG] Running non-temporal copy test (%zu iterations)...\n", num_iters);
-	for (size_t i = 0; i < num_iters; i++)
-	{
-		run_copy_benchmark_nt(map, copy_map, size, stats_copy_nt);
-	}
+    MemArena copy_wc_mem_arena(dev, buffer_size, MemoryType::WC, non_temporal_flush);
+    MemArena copy_wb_mem_arena(dev, buffer_size, MemoryType::WB, temporal_flush);
 
-	DEBUG_PRINT("[DEBUG] Completed non-temporal tests\n");
+    // Both WB Backed
+    runRegularCopyTests(wb_mem_arena, copy_wb_mem_arena, message_size, batch_size);
+    runNtCopyTests(wb_mem_arena, copy_wb_mem_arena, message_size, batch_size);
+
+    // Both WC Backed
+    runNtCopyTests(wc_mem_arena, copy_wc_mem_arena, message_size, batch_size);
+
+    // WC Source, WB Destination
+    runNtSrcCopyTests(wc_mem_arena, copy_wb_mem_arena, message_size, batch_size);
+
+    // WB Source, WC Destination
+    runNtDstCopyTests(wb_mem_arena, copy_wc_mem_arena, message_size, batch_size);
+
+    DEBUG_PRINT("Completed all RW benchmarks for iteration");
+
+    return;
 }
 
-void run_benchmark_iteration(void *map, void *copy_map, size_t size, bool is_uncached,
-							 HistogramStats &stats_read, HistogramStats &stats_read_nt,
-							 HistogramStats &stats_write, HistogramStats &stats_write_nt,
-							 HistogramStats &stats_copy, HistogramStats &stats_copy_nt)
+void runRwTests(const MemArena &arena, const std::size_t message_size, const std::size_t batch_size,
+                HistogramStats &stats_read, HistogramStats &stats_write)
 {
-	DEBUG_PRINT("[DEBUG] Starting benchmark iteration for %zu bytes (%s)\n",
-				size, is_uncached ? "uncached" : "cached");
+    DEBUG_PRINT("Running RW tests: size=" << message_size << " bytes, batch_size=" << batch_size
+                                          << " (mode=" << (is_uncached ? "uncached" : "cached")
+                                          << ")");
 
-	// Run non-temporal tests first
-	run_non_temporal_tests(map, copy_map, size, is_uncached,
-						   stats_read_nt, stats_write_nt, stats_copy_nt, NUM_ITERS);
+    void *ptr = arena.ptr;
+    bool cache_flush = static_cast<bool>(arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
 
-	// Run temporal tests second
-	run_temporal_tests(map, copy_map, size, is_uncached,
-					   stats_read, stats_write, stats_copy, NUM_ITERS);
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        writeBenchmark(ptr, message_size, batch_size, stats_write, cache_flush);
+    }
 
-	DEBUG_PRINT("[DEBUG] Completed all benchmarks for iteration\n");
+    // Skip regular reads for large uncached buffers
+    if (!(arena.type == MemoryType::WC && message_size > 1 * BYTES_PER_KB))
+    {
+        for (std::size_t i = 0; i < iter_batch_size; i++)
+        {
+            readBenchmark(ptr, message_size, batch_size, stats_read, cache_flush);
+        }
+    }
+
+    return;
+}
+
+void runRwTestsAvx512(const MemArena &arena, const std::size_t message_size,
+                      const std::size_t batch_size, HistogramStats &stats_read,
+                      HistogramStats &stats_write)
+{
+    DEBUG_PRINT("Running AVX-512 RW tests: size="
+                << message_size << " bytes, batch_size=" << batch_size
+                << " (type=" << (arena.type == MemoryType::WC ? "WC" : "WB") << ")");
+
+    void *ptr = arena.ptr;
+    bool cache_flush = static_cast<bool>(arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        writeBenchmarkAvx512(ptr, message_size, batch_size, stats_write, cache_flush);
+    }
+
+    // Skip regular reads for large uncached buffers
+    if (!(arena.type == MemoryType::WC && message_size > 1 * BYTES_PER_KB))
+    {
+        for (std::size_t i = 0; i < iter_batch_size; i++)
+        {
+            readBenchmarkAvx512(ptr, message_size, batch_size, stats_read, cache_flush);
+        }
+    }
+
+    return;
+}
+
+void runRwTestsAvx512Unrolled(const MemArena &arena, const std::size_t message_size,
+                              const std::size_t batch_size, HistogramStats &stats_read,
+                              HistogramStats &stats_write)
+{
+    DEBUG_PRINT("Running AVX-512 Unrolled RW tests: size="
+                << message_size << " bytes, batch_size=" << batch_size
+                << " (type=" << (arena.type == MemoryType::WC ? "WC" : "WB") << ")");
+
+    void *ptr = arena.ptr;
+    bool cache_flush = static_cast<bool>(arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        writeBenchmarkAvx512Unrolled(ptr, message_size, batch_size, stats_write, cache_flush);
+    }
+
+    // Skip regular reads for large uncached buffers
+    if (!(arena.type == MemoryType::WC && message_size > 1 * BYTES_PER_KB))
+    {
+        for (std::size_t i = 0; i < iter_batch_size; i++)
+        {
+            readBenchmarkAvx512Unrolled(ptr, message_size, batch_size, stats_read, cache_flush);
+        }
+    }
+}
+
+void runNtRWTests(const MemArena &arena, const std::size_t message_size,
+                  const std::size_t batch_size, HistogramStats &stats_read_nt,
+                  HistogramStats &stats_write_nt)
+{
+    DEBUG_PRINT("Running NT RW tests: size=" << message_size
+                                             << " bytes, batch_size=" << batch_size);
+
+    void *ptr = arena.ptr;
+    bool cache_flush = static_cast<bool>(arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        writeBenchmarkNt(ptr, message_size, batch_size, stats_write_nt, cache_flush);
+    }
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        readBenchmarkNt(ptr, message_size, batch_size, stats_read_nt, cache_flush);
+    }
+
+    return;
+}
+
+void runNtRWTestsUnrolled(const MemArena &arena, const std::size_t message_size,
+                          const std::size_t batch_size, HistogramStats &stats_read_nt,
+                          HistogramStats &stats_write_nt)
+{
+    DEBUG_PRINT("Running NT Unrolled RW tests: size=" << message_size
+                                                      << " bytes, batch_size=" << batch_size);
+
+    void *ptr = arena.ptr;
+    bool cache_flush = static_cast<bool>(arena.flush_type);
+    const std::size_t iter_batch_size = numItersBatchSize(batch_size);
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        writeBenchmarkNtUnrolled(ptr, message_size, batch_size, stats_write_nt, cache_flush);
+    }
+
+    for (std::size_t i = 0; i < iter_batch_size; i++)
+    {
+        readBenchmarkNtUnrolled(ptr, message_size, batch_size, stats_read_nt, cache_flush);
+    }
+}
+
+void runRwIteration(char *dev, const std::size_t message_size, const std::size_t batch_size,
+                    const MemoryType mem_type, const CacheFlushType temporal_flush,
+                    const CacheFlushType non_temporal_flush)
+{
+    DEBUG_PRINT("Starting RW benchmark iteration: size="
+                << message_size << " bytes, batch_size=" << batch_size
+                << " (mode=" << (mem_type == MemoryType::WC ? "uncached" : "cached") << ")");
+
+    const std::uint64_t bucket_size = testBucketSize(message_size);
+    HistogramStats stats_read(testFileName("Regular Read", message_size, batch_size), bucket_size,
+                              HISTO_SIZE, true);
+    HistogramStats stats_read_nt(testFileName("NT Read", message_size, batch_size), bucket_size,
+                                 HISTO_SIZE, true);
+    HistogramStats stats_write(testFileName("Regular Write", message_size, batch_size), bucket_size,
+                               HISTO_SIZE, true);
+    HistogramStats stats_write_nt(testFileName("NT Write", message_size, batch_size), bucket_size,
+                                  HISTO_SIZE, true);
+    HistogramStats stats_read_avx512(testFileName("AVX512 Read", message_size, batch_size),
+                                     bucket_size, HISTO_SIZE, true);
+    HistogramStats stats_write_avx512(testFileName("AVX512 Write", message_size, batch_size),
+                                      bucket_size, HISTO_SIZE, true);
+
+    const std::size_t buffer_size = message_size * batch_size;
+    const CacheFlushType arena_cache_policy =
+        (mem_type == MemoryType::WC) ? non_temporal_flush : temporal_flush;
+    MemArena mem_arena(dev, buffer_size, mem_type, arena_cache_policy);
+
+    runRwTests(mem_arena, message_size, batch_size, stats_read, stats_write);
+    runNtRWTests(mem_arena, message_size, batch_size, stats_read_nt, stats_write_nt);
+    runRwTestsAvx512(mem_arena, message_size, batch_size, stats_read_avx512, stats_write_avx512);
+
+    DEBUG_PRINT("Completed all RW benchmarks for iteration");
+
+    return;
+}
+
+void runRwIterationUnrolled(char *dev, const std::size_t message_size, const std::size_t batch_size,
+                            const MemoryType mem_type, const CacheFlushType temporal_flush,
+                            const CacheFlushType non_temporal_flush)
+{
+    DEBUG_PRINT("Starting Unrolled RW benchmark iteration: size="
+                << message_size << " bytes, batch_size=" << batch_size
+                << " (mode=" << (mem_type == MemoryType::WC ? "uncached" : "cached") << ")");
+
+    const std::uint64_t bucket_size = testBucketSize(message_size);
+    HistogramStats stats_read_unrolled(
+        testFileName("Regular Read Unrolled", message_size, batch_size), bucket_size, HISTO_SIZE,
+        true);
+    HistogramStats stats_read_nt_unrolled(
+        testFileName("NT Read Unrolled", message_size, batch_size), bucket_size, HISTO_SIZE, true);
+    HistogramStats stats_write_unrolled(
+        testFileName("Regular Write Unrolled", message_size, batch_size), bucket_size, HISTO_SIZE,
+        true);
+    HistogramStats stats_write_nt_unrolled(
+        testFileName("NT Write Unrolled", message_size, batch_size), bucket_size, HISTO_SIZE, true);
+    HistogramStats stats_read_avx512_unrolled(
+        testFileName("AVX512 Read Unrolled", message_size, batch_size), bucket_size, HISTO_SIZE,
+        true);
+    HistogramStats stats_write_avx512_unrolled(
+        testFileName("AVX512 Write Unrolled", message_size, batch_size), bucket_size, HISTO_SIZE,
+        true);
+
+    const std::size_t buffer_size = message_size * batch_size;
+    const CacheFlushType arena_cache_policy =
+        (mem_type == MemoryType::WC) ? non_temporal_flush : temporal_flush;
+    MemArena mem_arena(dev, buffer_size, mem_type, arena_cache_policy);
+
+    // Skip if message size isn't aligned to unroll factor * vector size
+    const std::size_t min_size = sizeof(__m512i) * UNROLL_FACTOR;
+    if (message_size % min_size == 0)
+    {
+        runRwTestsAvx512Unrolled(mem_arena, message_size, batch_size, stats_read_avx512_unrolled,
+                                 stats_write_avx512_unrolled);
+        runNtRWTestsUnrolled(mem_arena, message_size, batch_size, stats_read_nt_unrolled,
+                             stats_write_nt_unrolled);
+        DEBUG_PRINT("Completed all unrolled RW benchmarks for iteration");
+    }
+    else
+    {
+        DEBUG_PRINT("Skipping unrolled benchmarks - message size "
+                    << message_size << " not aligned to " << min_size << " bytes");
+    }
+
+    return;
 }
 
 int main(int ac, char **av)
 {
-	// Pin process to core 3
-	cpu_set_t cpuset;
-	CPU_ZERO(&cpuset);
-	CPU_SET(3, &cpuset);
-	if (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) == -1)
-	{
-		die("Failed to set CPU affinity");
-	}
+    // Pin process to core 3
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(3, &cpuset);
+    if (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) == -1)
+    {
+        DEBUG_PRINT("Failed to set CPU affinity");
+        die("Failed to set CPU affinity");
+    }
 
-	if (ac != 3)
-	{
-		usage(ac, av);
-	}
+    if (ac != 5)  // Updated to check for 5 arguments
+    {
+        usage(ac, av);
+    }
 
-	std::cout << "Device path: " << av[2] << std::endl; // Add this line to print device path
+    std::cout << "Device path: " << av[2] << std::endl;
 
-	int uncached_mem_test;
-	if (!strcmp(av[1], "uncached"))
-	{
-		uncached_mem_test = 1;
-	}
-	else if (!strcmp(av[1], "cached"))
-	{
-		uncached_mem_test = 0;
-	}
-	else
-	{
-		usage(ac, av);
-	}
+    MemoryType mem_type;
+    if (!strcmp(av[1], "uncached"))
+    {
+        mem_type = MemoryType::WC;
+    }
+    else if (!strcmp(av[1], "cached"))
+    {
+        mem_type = MemoryType::WB;
+    }
+    else
+    {
+        usage(ac, av);
+    }
 
-	// Define buffer sizes to test
-	std::vector<size_t> buffer_sizes = {
-		64,					// 64 B
-		128,				// 128 B
-		BYTES_PER_KB,		// 1 KB
-		4 * BYTES_PER_KB,	// 4 KB
-		L1,					// L1 cache size (32 KB)
-		64 * BYTES_PER_KB,	// 64 KB
-		256 * BYTES_PER_KB, // 256 KB
-	};
+    const CacheFlushType temporal_flush = static_cast<CacheFlushType>(atoi(av[3]));
+    const CacheFlushType non_temporal_flush = static_cast<CacheFlushType>(atoi(av[4]));
 
-	// Run benchmarks for each buffer size
-	for (size_t size : buffer_sizes)
-	{
-		DEBUG_PRINT("[DEBUG] ========================================\n");
-		DEBUG_PRINT("[DEBUG] Starting benchmark for size: %zu bytes\n", size);
-		std::cout << "\nTesting buffer size: " << size << " bytes" << std::endl;
+    if (static_cast<int>(temporal_flush) != 0 && static_cast<int>(temporal_flush) != 1)
+    {
+        std::cout << "Error: temporal_flush must be 0 or 1" << std::endl;
+        usage(ac, av);
+    }
 
-		uint64_t bucket_size = get_bucket_size(size);
-		// Histogram stats declarations
-		HistogramStats stats_read("Regular read: " + std::to_string(size),
-								  bucket_size, 10000, true);
-		HistogramStats stats_read_nt("NT read: " + std::to_string(size),
-									 bucket_size, 10000, true);
-		HistogramStats stats_write("Regular write: " + std::to_string(size),
-								   bucket_size, 10000, true);
-		HistogramStats stats_write_nt("NT write: " + std::to_string(size),
-									  bucket_size, 10000, true);
-		HistogramStats stats_copy("Regular copy: " + std::to_string(size),
-								  bucket_size, 10000, true);
-		HistogramStats stats_copy_nt("NT copy: " + std::to_string(size),
-									 bucket_size, 10000, true);
+    if (static_cast<int>(non_temporal_flush) != 0 && static_cast<int>(non_temporal_flush) != 1)
+    {
+        std::cout << "Error: non_temporal_flush must be 0 or 1" << std::endl;
+        usage(ac, av);
+    }
 
-		// Allocate memory for the copy benchmarks
-		void *copy_map = aligned_alloc(64, size);
+    for (const std::size_t message_size : BUFFER_SIZES)
+    {
+        for (const std::size_t batch_size : BATCH_SIZES)
+        {
+            DEBUG_PRINT("Running benchmarks for size=" << message_size
+                                                       << " bytes and batch_size=" << batch_size);
+            runRwIteration(av[2], message_size, batch_size, mem_type, temporal_flush,
+                           non_temporal_flush);
+            // runRwIterationUnrolled(av[2], message_size, batch_size, mem_type, temporal_flush,
+            //                        non_temporal_flush);
+        }
+    }
 
-		if (!copy_map)
-		{
-			die("Failed to allocate aligned memory for copy");
-		}
+    // for (const std::size_t message_size : BUFFER_SIZES)
+    // {
+    //     for (const std::size_t batch_size : BATCH_SIZES)
+    //     {
+    //         DEBUG_PRINT("Running benchmarks for size=" << message_size
+    //                                                    << " bytes and batch_size=" <<
+    //                                                    batch_size);
+    //         copyIteration(av[2], message_size, batch_size, temporal_flush, non_temporal_flush);
+    //     }
+    // }
 
-		if (uncached_mem_test)
-		{
-			// Map a single 1MB region for all tests
-			const size_t MAP_SIZE = 1024 * 1024; // 1 MB
-			void *base_map = get_mem(av[2], MAP_SIZE);
-			if (!base_map)
-			{
-				die("Failed to map memory region");
-			}
-
-			run_benchmark_iteration(base_map, copy_map, size, true,
-									stats_read, stats_read_nt,
-									stats_write, stats_write_nt,
-									stats_copy, stats_copy_nt);
-
-			// Check final sum
-			verify_copy_sum(copy_map, size, NUM_ITERS);
-
-			// Cleanup single mapping at the end
-			munmap(base_map, MAP_SIZE);
-		}
-		else
-		{
-			// Single allocation for all tests
-			void *map = aligned_alloc(64, size);
-			if (!map)
-			{
-				die("Failed to allocate aligned memory");
-			}
-
-			run_benchmark_iteration(map, copy_map, size, false,
-									stats_read, stats_read_nt,
-									stats_write, stats_write_nt,
-									stats_copy, stats_copy_nt);
-
-			// Check final sum
-			verify_copy_sum(copy_map, size, NUM_ITERS);
-
-			// Free single allocation
-			free(map);
-		}
-
-		free(copy_map);
-		DEBUG_PRINT("[DEBUG] Completed all tests for size: %zu bytes\n\n", size);
-		std::cout << std::endl;
-	}
-
-	return 0;
+    return 0;
 }

@@ -4,7 +4,7 @@ LDFLAGS=-pthread
 
 all: wc_test wc_test_shared shm_benchmark
 
-wc_test: wc_test.cpp constants.h stats.hpp bench.hpp
+wc_test: wc_test.cpp constants.h stats.hpp bench.hpp mem.hpp
 	$(CXX) $(CXXFLAGS) wc_test.cpp -o wc_test
 
 wc_test_shared: wc_test_shared.cpp constants.h stats.hpp bench.hpp

@@ -1,0 +1,121 @@
+Device path: /home/anishnya/wc-kernel-module/scripts/dev
+Latency = 17.89 
+AVX512 Write_64_1: ( count = 1000000, min = 16, p1 = 17, p10 = 17, p25 = 18, p50 = 18, p75 = 18, p90 = 18, p99 = 19, max = 2935, high = 0 )
+Latency = 197.35 
+AVX512 Read_64_1: ( count = 1000000, min = 110, p1 = 184, p10 = 185, p25 = 186, p50 = 187, p75 = 188, p90 = 189, p99 = 545, max = 67626, high = 0 )
+Latency = 17.68 
+NT Write_64_1: ( count = 1000000, min = 16, p1 = 16, p10 = 17, p25 = 17, p50 = 18, p75 = 18, p90 = 18, p99 = 19, max = 4473, high = 0 )
+Latency = 225.58 
+Regular Write_64_1: ( count = 1000000, min = 16, p1 = 193, p10 = 212, p25 = 214, p50 = 216, p75 = 218, p90 = 220, p99 = 538, max = 19015, high = 0 )
+Latency = 178.54 
+NT Read_64_1: ( count = 1000000, min = 104, p1 = 144, p10 = 147, p25 = 173, p50 = 177, p75 = 178, p90 = 178, p99 = 482, max = 5499, high = 0 )
+Latency = 872.66 
+Regular Read_64_1: ( count = 1000000, min = 754, p1 = 825, p10 = 829, p25 = 830, p50 = 831, p75 = 833, p90 = 1143, p99 = 1226, max = 6824, high = 0 )
+Latency = 17.41 
+AVX512 Write_128_1: ( count = 1000000, min = 16, p1 = 16, p10 = 17, p25 = 17, p50 = 17, p75 = 18, p90 = 18, p99 = 19, max = 5423, high = 0 )
+Latency = 270.59 
+AVX512 Read_128_1: ( count = 1000000, min = 192, p1 = 253, p10 = 254, p25 = 255, p50 = 256, p75 = 258, p90 = 260, p99 = 649, max = 5646, high = 0 )
+Latency = 91.96 
+NT Write_128_1: ( count = 1000000, min = 16, p1 = 82, p10 = 82, p25 = 83, p50 = 83, p75 = 84, p90 = 85, p99 = 369, max = 6128, high = 0 )
+Latency = 198.78 
+Regular Write_128_1: ( count = 1000000, min = 18, p1 = 188, p10 = 189, p25 = 190, p50 = 192, p75 = 194, p90 = 195, p99 = 422, max = 8736, high = 0 )
+Latency = 163.83 
+NT Read_128_1: ( count = 1000000, min = 98, p1 = 128, p10 = 132, p25 = 135, p50 = 163, p75 = 164, p90 = 165, p99 = 515, max = 5342, high = 0 )
+Latency = 1484.46 
+Regular Read_128_1: ( count = 1000000, min = 1361, p1 = 1405, p10 = 1407, p25 = 1409, p50 = 1413, p75 = 1419, p90 = 1777, p99 = 1798, max = 7304, high = 0 )
+Latency = 226.95 
+AVX512 Write_256_1: ( count = 1000000, min = 16, p1 = 211, p10 = 212, p25 = 214, p50 = 215, p75 = 215, p90 = 216, p99 = 604, max = 6340, high = 0 )
+Latency = 469.87 
+AVX512 Read_256_1: ( count = 1000000, min = 373, p1 = 442, p10 = 444, p25 = 445, p50 = 446, p75 = 447, p90 = 450, p99 = 816, max = 6674, high = 0 )
+Latency = 238.27 
+NT Write_256_1: ( count = 1000000, min = 27, p1 = 221, p10 = 222, p25 = 223, p50 = 225, p75 = 226, p90 = 227, p99 = 622, max = 5099, high = 0 )
+Latency = 24.37 
+Regular Write_256_1: ( count = 1000000, min = 22, p1 = 22, p10 = 23, p25 = 24, p50 = 24, p75 = 25, p90 = 25, p99 = 26, max = 4587, high = 0 )
+Latency = 186.79 
+NT Read_256_1: ( count = 1000000, min = 111, p1 = 139, p10 = 176, p25 = 176, p50 = 177, p75 = 178, p90 = 178, p99 = 568, max = 5779, high = 0 )
+Latency = 3002.67 
+Regular Read_256_1: ( count = 1000000, min = 2796, p1 = 2834, p10 = 2841, p25 = 2845, p50 = 2852, p75 = 3208, p90 = 3240, p99 = 3599, max = 12849, high = 0 )
+Latency = 251.24 
+AVX512 Write_512_1: ( count = 1000000, min = 17, p1 = 224, p10 = 226, p25 = 228, p50 = 229, p75 = 230, p90 = 231, p99 = 599, max = 5945, high = 0 )
+Latency = 847.58 
+AVX512 Read_512_1: ( count = 1000000, min = 787, p1 = 824, p10 = 826, p25 = 827, p50 = 830, p75 = 834, p90 = 920, p99 = 1000, max = 6144, high = 0 )
+Latency = 261.73 
+NT Write_512_1: ( count = 1000000, min = 24, p1 = 236, p10 = 238, p25 = 239, p50 = 240, p75 = 244, p90 = 248, p99 = 588, max = 5295, high = 0 )
+Latency = 254.60 
+Regular Write_512_1: ( count = 1000000, min = 39, p1 = 229, p10 = 233, p25 = 233, p50 = 234, p75 = 235, p90 = 236, p99 = 594, max = 9221, high = 0 )
+Latency = 214.67 
+NT Read_512_1: ( count = 1000000, min = 115, p1 = 189, p10 = 190, p25 = 191, p50 = 192, p75 = 194, p90 = 198, p99 = 585, max = 12005, high = 0 )
+Latency = 6116.28 
+Regular Read_512_1: ( count = 1000000, min = 5785, p1 = 5797, p10 = 5806, p25 = 5824, p50 = 6155, p75 = 6199, p90 = 6501, p99 = 7669, max = 22933, high = 0 )
+Latency = 30.38 
+AVX512 Write_1024_1: ( count = 1000000, min = 20, p1 = 30, p10 = 30, p25 = 30, p50 = 30, p75 = 30, p90 = 30, p99 = 30, max = 5770, high = 0 )
+Latency = 1712.64 
+AVX512 Read_1024_1: ( count = 1000000, min = 1540, p1 = 1550, p10 = 1550, p25 = 1560, p50 = 1560, p75 = 1910, p90 = 1990, p99 = 2320, max = 17480, high = 0 )
+Latency = 293.65 
+NT Write_1024_1: ( count = 1000000, min = 30, p1 = 260, p10 = 260, p25 = 260, p50 = 270, p75 = 270, p90 = 400, p99 = 600, max = 5410, high = 0 )
+Latency = 273.96 
+Regular Write_1024_1: ( count = 1000000, min = 50, p1 = 240, p10 = 240, p25 = 240, p50 = 250, p75 = 250, p90 = 390, p99 = 620, max = 14290, high = 0 )
+Latency = 294.54 
+NT Read_1024_1: ( count = 1000000, min = 200, p1 = 250, p10 = 250, p25 = 260, p50 = 260, p75 = 260, p90 = 410, p99 = 600, max = 6420, high = 0 )
+Latency = 12579.75 
+Regular Read_1024_1: ( count = 1000000, min = 11410, p1 = 11440, p10 = 11790, p25 = 11840, p50 = 12220, p75 = 12620, p90 = 14560, p99 = 15240, max = 27640, high = 0 )
+Latency = 302.77 
+AVX512 Write_4096_1: ( count = 1000000, min = 50, p1 = 240, p10 = 240, p25 = 250, p50 = 250, p75 = 250, p90 = 610, p99 = 650, max = 5710, high = 0 )
+Latency = -nan 
+AVX512 Read_4096_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 368.94 
+NT Write_4096_1: ( count = 1000000, min = 130, p1 = 310, p10 = 320, p25 = 320, p50 = 320, p75 = 320, p90 = 600, p99 = 680, max = 6960, high = 0 )
+Latency = 405.36 
+Regular Write_4096_1: ( count = 1000000, min = 190, p1 = 340, p10 = 350, p25 = 350, p50 = 360, p75 = 370, p90 = 580, p99 = 780, max = 12720, high = 0 )
+Latency = 732.69 
+NT Read_4096_1: ( count = 1000000, min = 550, p1 = 630, p10 = 640, p25 = 650, p50 = 660, p75 = 700, p90 = 960, p99 = 1340, max = 6700, high = 0 )
+Latency = -nan 
+Regular Read_4096_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 444.76 
+AVX512 Write_8192_1: ( count = 1000000, min = 160, p1 = 340, p10 = 340, p25 = 350, p50 = 350, p75 = 530, p90 = 700, p99 = 730, max = 6250, high = 0 )
+Latency = -nan 
+AVX512 Read_8192_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 538.06 
+NT Write_8192_1: ( count = 1000000, min = 270, p1 = 460, p10 = 460, p25 = 460, p50 = 460, p75 = 660, p90 = 710, p99 = 730, max = 18790, high = 0 )
+Latency = 607.36 
+Regular Write_8192_1: ( count = 1000000, min = 330, p1 = 480, p10 = 500, p25 = 510, p50 = 510, p75 = 750, p90 = 810, p99 = 860, max = 6930, high = 0 )
+Latency = 1258.96 
+NT Read_8192_1: ( count = 1000000, min = 1000, p1 = 1090, p10 = 1100, p25 = 1110, p50 = 1130, p75 = 1470, p90 = 1530, p99 = 1680, max = 7650, high = 0 )
+Latency = -nan 
+Regular Read_8192_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 699.25 
+AVX512 Write_16384_1: ( count = 1000000, min = 430, p1 = 610, p10 = 620, p25 = 620, p50 = 620, p75 = 840, p90 = 860, p99 = 900, max = 9400, high = 0 )
+Latency = -nan 
+AVX512 Read_16384_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 849.13 
+NT Write_16384_1: ( count = 1000000, min = 550, p1 = 730, p10 = 730, p25 = 730, p50 = 740, p75 = 980, p90 = 1070, p99 = 1090, max = 6400, high = 0 )
+Latency = 912.98 
+Regular Write_16384_1: ( count = 1000000, min = 600, p1 = 770, p10 = 810, p25 = 810, p50 = 830, p75 = 970, p90 = 1150, p99 = 1200, max = 13630, high = 0 )
+Latency = 2262.30 
+NT Read_16384_1: ( count = 1000000, min = 1940, p1 = 2020, p10 = 2030, p25 = 2050, p50 = 2270, p75 = 2350, p90 = 2510, p99 = 2780, max = 17540, high = 0 )
+Latency = -nan 
+Regular Read_16384_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 1244.40 
+AVX512 Write_32768_1: ( count = 1000000, min = 990, p1 = 1160, p10 = 1170, p25 = 1170, p50 = 1170, p75 = 1310, p90 = 1490, p99 = 1500, max = 12500, high = 0 )
+Latency = -nan 
+AVX512 Read_32768_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 1407.30 
+NT Write_32768_1: ( count = 1000000, min = 1100, p1 = 1280, p10 = 1290, p25 = 1290, p50 = 1390, p75 = 1520, p90 = 1580, p99 = 1630, max = 16920, high = 0 )
+Latency = 1535.73 
+Regular Write_32768_1: ( count = 1000000, min = 1210, p1 = 1360, p10 = 1420, p25 = 1430, p50 = 1520, p75 = 1650, p90 = 1720, p99 = 1780, max = 17680, high = 0 )
+Latency = 4374.85 
+NT Read_32768_1: ( count = 1000000, min = 3970, p1 = 4010, p10 = 4070, p25 = 4210, p50 = 4370, p75 = 4510, p90 = 4640, p99 = 4940, max = 18700, high = 0 )
+Latency = -nan 
+Regular Read_32768_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 2401.53 
+AVX512 Write_65536_1: ( count = 1000000, min = 2100, p1 = 2270, p10 = 2280, p25 = 2280, p50 = 2320, p75 = 2510, p90 = 2640, p99 = 2660, max = 13100, high = 0 )
+Latency = -nan 
+AVX512 Read_65536_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )
+Latency = 2501.13 
+NT Write_65536_1: ( count = 1000000, min = 2220, p1 = 2390, p10 = 2400, p25 = 2400, p50 = 2430, p75 = 2650, p90 = 2700, p99 = 2720, max = 9290, high = 0 )
+Latency = 2762.42 
+Regular Write_65536_1: ( count = 1000000, min = 2430, p1 = 2570, p10 = 2650, p25 = 2660, p50 = 2720, p75 = 2840, p90 = 2960, p99 = 3040, max = 20740, high = 0 )
+Latency = 8775.79 
+NT Read_65536_1: ( count = 1000000, min = 8090, p1 = 8210, p10 = 8310, p25 = 8510, p50 = 8770, p75 = 9010, p90 = 9180, p99 = 9580, max = 20910, high = 0 )
+Latency = -nan 
+Regular Read_65536_1: ( count = 0, min = 0, p1 = 0, p10 = 0, p25 = 0, p50 = 0, p75 = 0, p90 = 0, p99 = 0, max = 0, high = 0 )

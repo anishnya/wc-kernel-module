@@ -1,0 +1,2 @@
+Latency = 23.20 
+Signal_write_avx512__2048__0: ( count = 1000000, min = 20, p1 = 20, p10 = 20, p25 = 20, p50 = 20, p75 = 20, p90 = 20, p99 = 30, max = 4850, high = 0 )
